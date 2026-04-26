@@ -1032,11 +1032,12 @@
       addMessage('bot', reply);
       messages.push({ role: 'assistant', content: reply });
 // GASにログを記録
-      fetch('https://script.google.com/macros/s/AKfycbyRwnwwRnZHBZrcoB01QXH0mkys0EfbYOrwQ4WfdAm-7i1v_yN1iZupkfsHgn0Kujm1TA/exec', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ question: text, answer: reply, ip: '' }),
-      }).catch(() => {});
+fetch('https://script.google.com/...', {
+  method: 'POST',
+  mode: 'no-cors',
+  headers: { 'Content-Type': 'text/plain' },
+  body: JSON.stringify({ question: text, answer: reply, ip: '' }),
+}).catch(() => {});
 
     } catch (err) {
       removeTyping();
