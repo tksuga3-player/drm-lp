@@ -646,6 +646,40 @@
     30% { transform: translateY(-5px); opacity: 1; }
   }
 
+  #file-input-hidden { display: none; }
+
+  .file-attach-btn {
+    background: transparent;
+    border: 1px solid var(--border-subtle);
+    border-radius: 6px;
+    color: var(--text-dim);
+    width: 34px; height: 34px;
+    display: flex; align-items: center; justify-content: center;
+    cursor: pointer;
+    flex-shrink: 0;
+    font-size: 16px;
+    transition: border-color 0.2s, color 0.2s;
+  }
+  .file-attach-btn:hover { border-color: var(--gold-dim); color: var(--gold); }
+  .file-attach-btn.has-file { border-color: #4caa72; color: #4caa72; }
+
+  .file-preview-bar {
+    display: none;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 12px;
+    background: rgba(76,170,114,0.08);
+    border-top: 1px solid rgba(76,170,114,0.2);
+    font-size: 11px;
+    color: #4caa72;
+  }
+  .file-preview-bar.visible { display: flex; }
+  .file-preview-bar span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-remove-btn {
+    background: none; border: none; color: #888; cursor: pointer; font-size: 13px; padding: 0 2px;
+  }
+  .file-remove-btn:hover { color: #e05555; }
+
   .chat-input-area {
     padding: 16px 20px;
     border-top: 1px solid var(--border-subtle);
@@ -724,11 +758,7 @@
 <!-- HEADER -->
 <header>
   <div class="logo">売れる設計室<span>|</span>DRM Consulting</div>
-  <nav>
-    <a href="#principles">売れない理由</a>
-    <a href="#problems">こんな悩みに</a>
-    <a href="#chat-anchor" class="nav-cta" onclick="openChat()">無料相談を始める</a>
-  </nav>
+
 </header>
 
 <!-- HERO -->
@@ -741,20 +771,7 @@
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
       売り方を無料相談する
     </button>
-    <div class="hero-stats">
-      <div>
-        <div class="stat-num">6</div>
-        <div class="stat-label">売れない理由</div>
-      </div>
-      <div>
-        <div class="stat-num">即答</div>
-        <div class="stat-label">24時間対応</div>
-      </div>
-      <div>
-        <div class="stat-num">無料</div>
-        <div class="stat-label">ずっと無料</div>
-      </div>
-    </div>
+
   </div>
   <div class="hero-right"></div>
 </section>
@@ -890,7 +907,13 @@
     </div>
   </div>
 
+  <input type="file" id="file-input-hidden" accept="image/*,.pdf">
+  <div class="file-preview-bar" id="file-preview-bar">
+    <span id="file-preview-name">📎 ファイル名</span>
+    <button class="file-remove-btn" onclick="removeAttachment()">✕</button>
+  </div>
   <div class="chat-input-area">
+    <button class="file-attach-btn" id="file-attach-btn" onclick="document.getElementById('file-input-hidden').click()" title="画像・PDFを添付">📎</button>
     <textarea id="chat-input" placeholder="相談内容を入力してください..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     <button id="chat-send" onclick="sendMessage()">
       <svg width="16" height="16" fill="none" stroke="#ffffff" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -905,38 +928,72 @@
 
   const SYSTEM_PROMPT = `あなたはダイレクト・レスポンス・マーケティング（DRM）の専門コンサルタントです。神田昌典氏の顧客獲得実践会のアプローチ、ダン・ケネディのDRM原則、ゲイリー・ハルバートのコピーライティング手法に精通しています。
 
-主な相談者は「AIツール・自動化ツールを作れるが案件が取れない人」「AIコンサルをやっているが売上が出ない人」です。
+主な相談者は「AIツール・自動化ツールを作れるが案件が取れない人」「AIコンサルをやっているが売上が出ない人」「チラシや広告の反応率を上げたい人」です。
 
 【DRMの核心原則】
 ・チラシ・広告の目的は「販売」ではなく「見込み客の獲得」に絞る
-・オファーは「行動しないと損だ」と見込み客が感じるレベルに設計する
-・リードマグネット（無料PDF・診断ツール等）でハードルを下げる
+・チラシのCTAは一つに絞る
+・オファーは「行動しないと損だ」と見込み客が感じるレベルに設計する（希少性・緊急性を適切に使う）
+・リードマグネット（無料PDF・事例集等）でハードルを下げて関係を作る
 ・ヘッドラインで見込み客の感情（恐怖・欲望・好奇心）を刺激する
 ・値付けはフロントエンドとバックエンドを分け、初回接触では出さない
-・CTA（行動促進）は一つに絞る
 ・フォローアップで関係構築してから販売する
+
+【チラシ・広告を画像やPDFで見た場合の診断手順】
+1. 視覚的第一印象（0.5〜3秒で何が目に飛び込むか）を評価する
+2. メインコピーの言葉を抽出し、弱点を指摘する
+3. CTAが一つに絞られているか確認する
+4. 「教育フェーズの見込み客」と「いますぐ客」を同時に狙っていないか確認する
+5. 具体的な改善文案を提示する（「〜のような」ではなく実際の文言で）
+6. 最優先の改善点を1つに絞ってまとめる
 
 【リードマグネットの選び方】
 相手の状況によって最適なリードマグネットを提案せよ：
 ・情報収集段階の見込み客 → 無料レポート・事例集・チェックリスト
-・すぐ行動したい見込み客 → 無料相談・無料診断（ただし売り込み感が出やすいため注意）
 ・BtoB・士業・製造業 → 事例レポート・業務改善チェックリスト
 ・BtoC・店舗・飲食 → クーポン・無料体験・来店特典
 ・AI・自動化系サービス → 無料テンプレート・ツール・事例レポート
-「無料診断」は関係構築前に使うと売り込みの匂いを感じさせるため、原則として避けること。
+「無料診断」「無料相談」は関係構築前に使うと売り込みの匂いを感じさせるリスクがあるため、使う場合はフレーミングに注意せよ。
 
 【回答のルール】
-・相談者の業種・ターゲット・状況・地域が明示されていない場合は、まず確認してからアドバイスせよ
-・情報が揃っている場合は即座に具体的なアドバイスを出せ
+・相談者の業種・ターゲット・状況・地域が不明な場合はまず確認してからアドバイスせよ（ただしファイルが添付されている場合や情報が既に示されている場合は確認不要）
 ・抽象論より「具体的にこう書け」「このオファーにしろ」「このヘッドラインにしろ」という実践的な指摘を優先せよ
+・チラシや広告の修正指摘は「チラシ本体に書く内容か」「LINE登録後のシナリオに書く内容か」を必ず区別してアドバイスせよ
 ・必要に応じてチラシ・LP・提案文の具体的な文面まで書いて見せよ
-・業種・地域・予算が不明な場合は確認してから回答せよ（ただし既に書かれている場合は確認不要）
 
 日本語で答えてください。`;
 
   let messages = [];
   let isLoading = false;
   let chatOpen = false;
+  let attachedFile = null; // { name, type, base64 }
+
+  // File attachment handling
+  document.getElementById('file-input-hidden').addEventListener('change', function() {
+    if (this.files[0]) processAttachment(this.files[0]);
+  });
+
+  function processAttachment(file) {
+    const maxSize = 10 * 1024 * 1024;
+    const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
+    if (!allowed.includes(file.type)) { alert('対応形式はJPG / PNG / PDFのみです。'); return; }
+    if (file.size > maxSize) { alert('ファイルサイズは10MB以下にしてください。'); return; }
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      attachedFile = { name: file.name, type: file.type, base64: e.target.result.split(',')[1] };
+      document.getElementById('file-preview-name').textContent = '📎 ' + file.name;
+      document.getElementById('file-preview-bar').classList.add('visible');
+      document.getElementById('file-attach-btn').classList.add('has-file');
+    };
+    reader.readAsDataURL(file);
+  }
+
+  function removeAttachment() {
+    attachedFile = null;
+    document.getElementById('file-input-hidden').value = '';
+    document.getElementById('file-preview-bar').classList.remove('visible');
+    document.getElementById('file-attach-btn').classList.remove('has-file');
+  }
 
   function toggleChat() {
     chatOpen = !chatOpen;
@@ -1017,15 +1074,30 @@
   async function sendMessage() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
-    if (!text || isLoading) return;
+    if ((!text && !attachedFile) || isLoading) return;
 
     isLoading = true;
     document.getElementById('chat-send').disabled = true;
     input.value = '';
     input.style.height = 'auto';
 
-    addMessage('user', text);
-    messages.push({ role: 'user', content: text });
+    const displayText = text || '（ファイルを添付しました）';
+    const fileLabel = attachedFile ? `\n📎 ${attachedFile.name}` : '';
+    addMessage('user', displayText + fileLabel);
+
+    // Build API content
+    const userContent = [];
+    if (attachedFile) {
+      if (attachedFile.type === 'application/pdf') {
+        userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: attachedFile.base64 } });
+      } else {
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: attachedFile.type, data: attachedFile.base64 } });
+      }
+    }
+    userContent.push({ type: 'text', text: text || 'このチラシ・広告をDRM視点で診断してください。' });
+
+    messages.push({ role: 'user', content: userContent });
+    removeAttachment();
 
     showTyping();
 
