@@ -608,6 +608,20 @@
     color: var(--text);
   }
 
+  /* Markdown styles inside bot bubbles */
+  .msg.bot .msg-bubble .md-h1 { font-size: 15px; font-weight: 700; margin: 10px 0 4px; color: var(--gold); }
+  .msg.bot .msg-bubble .md-h2 { font-size: 14px; font-weight: 700; margin: 10px 0 4px; color: var(--gold); }
+  .msg.bot .msg-bubble .md-h3 { font-size: 13px; font-weight: 700; margin: 8px 0 3px; color: #ccc; }
+  .msg.bot .msg-bubble strong { color: #fff; font-weight: 700; }
+  .msg.bot .msg-bubble em { color: #a0c8ff; font-style: normal; }
+  .msg.bot .msg-bubble code { background: rgba(255,255,255,0.08); padding: 1px 5px; border-radius: 4px; font-family: monospace; font-size: 12px; }
+  .msg.bot .msg-bubble .md-hr { border: none; border-top: 1px solid var(--border-subtle); margin: 8px 0; }
+  .msg.bot .msg-bubble ul, .msg.bot .msg-bubble ol { padding-left: 18px; margin: 4px 0; }
+  .msg.bot .msg-bubble li { margin: 2px 0; }
+  .msg.bot .msg-bubble .md-table { border-collapse: collapse; width: 100%; margin: 8px 0; font-size: 12px; }
+  .msg.bot .msg-bubble .md-table th, .msg.bot .msg-bubble .md-table td { border: 1px solid var(--border-subtle); padding: 5px 8px; text-align: left; }
+  .msg.bot .msg-bubble .md-table th { background: rgba(255,255,255,0.06); font-weight: 700; }
+
   .msg.bot .msg-bubble {
     background: var(--bg3);
     border: 1px solid var(--border-subtle);
@@ -866,7 +880,7 @@
     <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
     売り方を無料相談する
   </button>
-  <p class="cta-note">// 無料 · 登録不要 · すぐに回答が届きます</p>
+  <p class="cta-note">// 今だけ無料 · 登録不要 · すぐに回答が届きます</p>
 </section>
 
 <!-- FOOTER -->
@@ -1024,6 +1038,61 @@
     el.style.height = Math.min(el.scrollHeight, 100) + 'px';
   }
 
+  function escapeHtml(text) {
+    return text.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+  }
+
+  function renderMarkdown(text) {
+    let html = escapeHtml(text);
+
+    // Headers ## → <strong> with margin
+    html = html.replace(/^### (.+)$/gm, '<div class="md-h3">$1</div>');
+    html = html.replace(/^## (.+)$/gm, '<div class="md-h2">$1</div>');
+    html = html.replace(/^# (.+)$/gm, '<div class="md-h1">$1</div>');
+
+    // Bold **text**
+    html = html.replace(/\*\*(.+?)\*\*/g, '<strong>$1</strong>');
+
+    // Italic *text*
+    html = html.replace(/\*(.+?)\*/g, '<em>$1</em>');
+
+    // Horizontal rule ---
+    html = html.replace(/^---+$/gm, '<hr class="md-hr">');
+
+    // Code `text`
+    html = html.replace(/`([^`]+)`/g, '<code>$1</code>');
+
+    // Bullet lists - item
+    html = html.replace(/^[・\-\*] (.+)$/gm, '<li>$1</li>');
+    html = html.replace(/(<li>.*?<\/li>)(\n<li>.*?<\/li>)*/gs, (m) => `<ul>${m}</ul>`);
+
+    // Numbered lists 1. item
+    html = html.replace(/^\d+\. (.+)$/gm, '<oli>$1</oli>');
+    html = html.replace(/(<oli>.*?<\/oli>)(\n<oli>.*?<\/oli>)*/gs, (m) => `<ol>${m.replace(/<\/?oli>/g, (t) => t === '<oli>' ? '<li>' : '</li>')}</ol>`);
+
+    // Tables |col|col|
+    html = html.replace(/(\|.+\|\n)+/g, (table) => {
+      const rows = table.trim().split('\n');
+      let out = '<table class="md-table">';
+      rows.forEach((row, i) => {
+        if (/^\|[-| :]+\|$/.test(row)) return;
+        const cells = row.split('|').slice(1,-1);
+        const tag = i === 0 ? 'th' : 'td';
+        out += '<tr>' + cells.map(c => `<${tag}>${c.trim()}</${tag}>`).join('') + '</tr>';
+      });
+      return out + '</table>';
+    });
+
+    // Blank lines → paragraph breaks (but not after block elements)
+    html = html.replace(/\n{2,}/g, '<br><br>');
+    html = html.replace(/\n/g, '<br>');
+
+    // Clean up extra <br> after block elements
+    html = html.replace(/(<\/div>|<\/ul>|<\/ol>|<\/table>|<hr[^>]*>)<br>/g, '$1');
+
+    return html;
+  }
+
   function addMessage(role, text) {
     const messagesEl = document.getElementById('chat-messages');
     const div = document.createElement('div');
@@ -1035,7 +1104,9 @@
 
     const bubble = document.createElement('div');
     bubble.className = 'msg-bubble';
-    bubble.innerHTML = text.replace(/\n/g, '<br>');
+    bubble.innerHTML = role === 'user' 
+      ? escapeHtml(text).replace(/\n/g, '<br>')
+      : renderMarkdown(text);
 
     div.appendChild(avatar);
     div.appendChild(bubble);
