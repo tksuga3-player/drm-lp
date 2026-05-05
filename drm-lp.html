@@ -474,6 +474,7 @@
     pointer-events: none;
     transition: all 0.25s cubic-bezier(0.16, 1, 0.3, 1);
     box-shadow: 0 24px 80px rgba(0,0,0,0.6);
+    isolation: isolate;
   }
 
   #chat-panel.open {
@@ -679,18 +680,33 @@
 
   .file-preview-bar {
     display: none;
-    align-items: center;
-    gap: 8px;
-    padding: 6px 12px;
+    align-items: flex-start;
+    gap: 6px;
+    padding: 6px 12px 6px;
     background: rgba(76,170,114,0.08);
     border-top: 1px solid rgba(76,170,114,0.2);
     font-size: 11px;
     color: #4caa72;
   }
   .file-preview-bar.visible { display: flex; }
-  .file-preview-bar span { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+  .file-tag {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    background: rgba(76,170,114,0.15);
+    border: 1px solid rgba(76,170,114,0.3);
+    border-radius: 4px;
+    padding: 2px 6px 2px 7px;
+    font-size: 11px;
+    color: #3a9060;
+    max-width: 160px;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+  }
+  .file-tag-name { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
   .file-remove-btn {
-    background: none; border: none; color: #888; cursor: pointer; font-size: 13px; padding: 0 2px;
+    background: none; border: none; color: #888; cursor: pointer; font-size: 12px; padding: 0; line-height: 1; flex-shrink: 0;
   }
   .file-remove-btn:hover { color: #e05555; }
 
@@ -779,7 +795,7 @@
 <section class="hero">
   <div class="hero-left">
     <div class="eyebrow">Direct Response Marketing</div>
-    <h1>作れる。<br>でも<em>売れない</em><br>方へ。</h1>
+    <h1>作れる<br>でも<em>売れない</em><br>方へ</h1>
     <p class="hero-sub">AIツールを作った。自動化もできる。コンサルもできる。でも案件が取れない。CrowdWorksで応募しても返信がない。それは<strong>技術の問題ではなく、売り方の設計の問題</strong>です。ダイレクト・レスポンス・マーケティングの原則で、今すぐ突破口を見つけましょう。</p>
     <button class="cta-btn" onclick="openChat()">
       <svg width="16" height="16" fill="none" stroke="currentColor" stroke-width="2" viewBox="0 0 24 24"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
@@ -921,13 +937,13 @@
     </div>
   </div>
 
-  <input type="file" id="file-input-hidden" accept="image/*,.pdf">
+  <input type="file" id="file-input-hidden" accept="image/*,.pdf" multiple>
   <div class="file-preview-bar" id="file-preview-bar">
-    <span id="file-preview-name">📎 ファイル名</span>
-    <button class="file-remove-btn" onclick="removeAttachment()">✕</button>
+    <div id="file-preview-list" style="display:flex;flex-wrap:wrap;gap:5px;flex:1;min-width:0;"></div>
   </div>
+  <div id="drop-overlay" style="display:none;position:absolute;inset:0;background:rgba(201,168,76,0.08);border:2px dashed var(--gold);z-index:10;pointer-events:none;align-items:center;justify-content:center;font-size:13px;color:var(--gold);letter-spacing:0.05em;">ここにドロップ</div>
   <div class="chat-input-area">
-    <button class="file-attach-btn" id="file-attach-btn" onclick="document.getElementById('file-input-hidden').click()" title="画像・PDFを添付">📎</button>
+    <button class="file-attach-btn" id="file-attach-btn" onclick="document.getElementById('file-input-hidden').click()" title="画像・PDFを添付（複数可）">📎</button>
     <textarea id="chat-input" placeholder="相談内容を入力してください..." rows="1" onkeydown="handleKey(event)" oninput="autoResize(this)"></textarea>
     <button id="chat-send" onclick="sendMessage()">
       <svg width="16" height="16" fill="none" stroke="#ffffff" stroke-width="2.5" viewBox="0 0 24 24"><line x1="22" y1="2" x2="11" y2="13"></line><polygon points="22 2 15 22 11 13 2 9 22 2"></polygon></svg>
@@ -980,33 +996,71 @@
   let messages = [];
   let isLoading = false;
   let chatOpen = false;
-  let attachedFile = null; // { name, type, base64 }
+  let attachedFiles = []; // [{ name, type, base64 }, ...]
 
-  // File attachment handling
+  // ── FILE INPUT (multiple) ──
   document.getElementById('file-input-hidden').addEventListener('change', function() {
-    if (this.files[0]) processAttachment(this.files[0]);
+    Array.from(this.files).forEach(f => processAttachment(f));
+    this.value = '';
+  });
+
+  // ── DRAG & DROP ──
+  const panel = document.getElementById('chat-panel');
+  const overlay = document.getElementById('drop-overlay');
+  let dragCounter = 0;
+
+  panel.addEventListener('dragenter', (e) => {
+    e.preventDefault();
+    dragCounter++;
+    overlay.style.display = 'flex';
+  });
+  panel.addEventListener('dragleave', () => {
+    dragCounter--;
+    if (dragCounter === 0) overlay.style.display = 'none';
+  });
+  panel.addEventListener('dragover', (e) => { e.preventDefault(); });
+  panel.addEventListener('drop', (e) => {
+    e.preventDefault();
+    dragCounter = 0;
+    overlay.style.display = 'none';
+    Array.from(e.dataTransfer.files).forEach(f => processAttachment(f));
   });
 
   function processAttachment(file) {
     const maxSize = 10 * 1024 * 1024;
     const allowed = ['image/jpeg', 'image/jpg', 'image/png', 'image/gif', 'image/webp', 'application/pdf'];
-    if (!allowed.includes(file.type)) { alert('対応形式はJPG / PNG / PDFのみです。'); return; }
-    if (file.size > maxSize) { alert('ファイルサイズは10MB以下にしてください。'); return; }
+    if (!allowed.includes(file.type)) { alert(`「${file.name}」は対応形式外です（JPG / PNG / PDF のみ）`); return; }
+    if (file.size > maxSize) { alert(`「${file.name}」は10MB超えです。`); return; }
     const reader = new FileReader();
     reader.onload = (e) => {
-      attachedFile = { name: file.name, type: file.type, base64: e.target.result.split(',')[1] };
-      document.getElementById('file-preview-name').textContent = '📎 ' + file.name;
-      document.getElementById('file-preview-bar').classList.add('visible');
-      document.getElementById('file-attach-btn').classList.add('has-file');
+      attachedFiles.push({ name: file.name, type: file.type, base64: e.target.result.split(',')[1] });
+      renderFilePreviews();
     };
     reader.readAsDataURL(file);
   }
 
-  function removeAttachment() {
-    attachedFile = null;
-    document.getElementById('file-input-hidden').value = '';
-    document.getElementById('file-preview-bar').classList.remove('visible');
-    document.getElementById('file-attach-btn').classList.remove('has-file');
+  function renderFilePreviews() {
+    const list = document.getElementById('file-preview-list');
+    const bar = document.getElementById('file-preview-bar');
+    const btn = document.getElementById('file-attach-btn');
+    list.innerHTML = attachedFiles.map((f, i) =>
+      `<span class="file-tag" title="${f.name}">
+        <span class="file-tag-name">📎 ${f.name}</span>
+        <button class="file-remove-btn" onclick="removeAttachment(${i})">✕</button>
+      </span>`
+    ).join('');
+    if (attachedFiles.length > 0) {
+      bar.classList.add('visible');
+      btn.classList.add('has-file');
+    } else {
+      bar.classList.remove('visible');
+      btn.classList.remove('has-file');
+    }
+  }
+
+  function removeAttachment(index) {
+    attachedFiles.splice(index, 1);
+    renderFilePreviews();
   }
 
   function toggleChat() {
@@ -1145,7 +1199,7 @@
   async function sendMessage() {
     const input = document.getElementById('chat-input');
     const text = input.value.trim();
-    if ((!text && !attachedFile) || isLoading) return;
+    if ((!text && attachedFiles.length === 0) || isLoading) return;
 
     isLoading = true;
     document.getElementById('chat-send').disabled = true;
@@ -1153,22 +1207,23 @@
     input.style.height = 'auto';
 
     const displayText = text || '（ファイルを添付しました）';
-    const fileLabel = attachedFile ? `\n📎 ${attachedFile.name}` : '';
+    const fileLabel = attachedFiles.length > 0 ? '\n' + attachedFiles.map(f => `📎 ${f.name}`).join('\n') : '';
     addMessage('user', displayText + fileLabel);
 
     // Build API content
     const userContent = [];
-    if (attachedFile) {
-      if (attachedFile.type === 'application/pdf') {
-        userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: attachedFile.base64 } });
+    attachedFiles.forEach(f => {
+      if (f.type === 'application/pdf') {
+        userContent.push({ type: 'document', source: { type: 'base64', media_type: 'application/pdf', data: f.base64 } });
       } else {
-        userContent.push({ type: 'image', source: { type: 'base64', media_type: attachedFile.type, data: attachedFile.base64 } });
+        userContent.push({ type: 'image', source: { type: 'base64', media_type: f.type, data: f.base64 } });
       }
-    }
+    });
     userContent.push({ type: 'text', text: text || 'このチラシ・広告をDRM視点で診断してください。' });
 
     messages.push({ role: 'user', content: userContent });
-    removeAttachment();
+    attachedFiles = [];
+    renderFilePreviews();
 
     showTyping();
 
